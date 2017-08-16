@@ -1,7 +1,7 @@
 #define pWTCON		0x53000000
 #define CLKDIVN 	0x4C000014
 #define MEM_CTL_BASE    0x48000000
-#define S3C2440_MPLL_400MHZ     ((0x5c<<12)|(0x01<<4)|(0x01))
+#define S3C2440_MPLL_200MHZ     ((0x5c<<12)|(0x01<<4)|(0x02))
 //#define MYUBOOT
 .text
 .global _start
@@ -13,7 +13,7 @@ _start:
 
 
 /*step 2:initial the clk*/
-	ldr r0,=CLKDIVN
+	ldr r0, =CLKDIVN
 	mov r1, #0x03;            // FCLK:HCLK:PCLK=1:2:4, HDIVN=1,PDIVN=1
 	str r1, [r0]
 	
@@ -24,11 +24,12 @@ _start:
 	
 	/* MPLLCON = S3C2440_MPLL_200MHZ */
 	ldr r0, =0x4c000004
-	ldr r1, =S3C2440_MPLL_400MHZ
+	ldr r1, =S3C2440_MPLL_200MHZ
 	str r1, [r0]
 	
 	
 /*step 3:initial sdram*/
+        /*由于uboot最终要将nandflash上的代码重定位到sdram中,所以要在重定位之前初始化sdram,这里要注意的时候初始化时,初始化的值不能保存在sdram中,因为这时sdram还是初始化*/
 	ldr r0, =MEM_CTL_BASE
 	adr r1, sdram_config
 	add r2, r0, #(4*13)
@@ -42,12 +43,12 @@ _start:
 /*step 4:relocate code*/
     /*stack set*/
 	ldr sp, =0x34000000 /*我们让栈指向内存最高地址,栈是向下增长的,我们的内存是64M,基地址是0x30000000*/
-	bl init_flash
+	bl nand_init
 	mov r0, #0x0
-	ldr r1, _start
-	ldr r2, __bss_start
+	ldr r1, =_start
+	ldr r2, =__bss_start
 	sub r2,r2,r1
-	bl copy_to_sdram
+	bl copy_code_to_sdram
 	bl clear_bss
 	
 	
@@ -60,9 +61,7 @@ halt:
 	b halt	
 	        
 	
-	
-	
-	
+		
 sdram_config:
 	.long 0x22011110	 //BWSCON
 	.long 0x00000700	 //BANKCON0
